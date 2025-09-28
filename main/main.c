@@ -18,8 +18,59 @@
 #include "utf8_validator.h"
 #include "font/fonts.h"
 #include <stdlib.h>
+#include <time.h>
+#include <sys/time.h>
 
-static const char *TAG = "NimBLE_BLE_PRPH";
+static const char *TAG = "TimeSync";
+
+// 外部声明update_time_display函数
+extern void update_time_display(long long timestamp);
+
+// 保存时间到NVS
+static void save_time_to_nvs(long long timestamp) {
+    nvs_handle_t nvs_handle;
+    esp_err_t err = nvs_open("storage", NVS_READWRITE, &nvs_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "打开NVS失败: %s", esp_err_to_name(err));
+        return;
+    }
+    
+    err = nvs_set_i64(nvs_handle, "system_time", timestamp);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "保存时间到NVS失败: %s", esp_err_to_name(err));
+    } else {
+        nvs_commit(nvs_handle);
+        ESP_LOGI(TAG, "时间已保存到NVS: %lld", timestamp);
+    }
+    
+    nvs_close(nvs_handle);
+}
+
+// 从NVS恢复时间
+static void restore_time_from_nvs(void) {
+    nvs_handle_t nvs_handle;
+    esp_err_t err = nvs_open("storage", NVS_READONLY, &nvs_handle);
+    if (err != ESP_OK) {
+        ESP_LOGI(TAG, "打开NVS失败或没有保存的时间");
+        return;
+    }
+    
+    int64_t saved_time = 0;
+    err = nvs_get_i64(nvs_handle, "system_time", &saved_time);
+    nvs_close(nvs_handle);
+    
+    if (err == ESP_OK && saved_time > 0) {
+        ESP_LOGI(TAG, "从NVS恢复时间: %lld", saved_time);
+        update_time_display(saved_time);
+        
+        // 设置系统时间
+        time_t ts = (time_t)(saved_time / 1000);
+        struct timeval tv = { .tv_sec = ts, .tv_usec = 0 };
+        settimeofday(&tv, NULL);
+    } else {
+        ESP_LOGI(TAG, "没有找到保存的时间数据");
+    }
+}
 
 static void create_order_ui(void)
 {
@@ -99,6 +150,27 @@ static char* decode_hex_content(const char* hex_content, char* buffer, size_t bu
 
 // 处理系统消息
 static void handle_system_message(cJSON* root) {
+    // 检查命令类型
+    cJSON *command = cJSON_GetObjectItem(root, "command");
+    if (command && cJSON_IsString(command)) {
+        const char *command_str = command->valuestring;
+        
+        // 处理display_test命令的时间戳同步
+        if (strcmp(command_str, "display_test") == 0) {
+            cJSON *timestamp = cJSON_GetObjectItem(root, "timestamp");
+            if (timestamp && cJSON_IsNumber(timestamp)) {
+                long long ts = (long long)timestamp->valuedouble;
+                ESP_LOGI(TAG, "收到时间戳: %lld", ts);
+                
+                // 保存时间到NVS
+                save_time_to_nvs(ts);
+                
+                // 更新时间显示
+                update_time_display(ts);
+            }
+        }
+    }
+    
     cJSON *content = cJSON_GetObjectItem(root, "content");
     if (!content || !cJSON_IsString(content)) return;
     
@@ -283,8 +355,10 @@ static int bleprph_gap_event(struct ble_gap_event *event, void *arg)
         if (event->connect.status == 0) {
             g_conn_handle = event->connect.conn_handle;
             ESP_LOGI(TAG, "Connected, handle=%d", event->connect.conn_handle);
+            update_bluetooth_status(true); // 更新蓝牙状态为已连接
         } else {
             ESP_LOGI(TAG, "Connect failed; status=%d", event->connect.status);
+            update_bluetooth_status(false); // 更新蓝牙状态为未连接
             bleprph_advertise();
         }
         return 0;
@@ -292,6 +366,7 @@ static int bleprph_gap_event(struct ble_gap_event *event, void *arg)
     case BLE_GAP_EVENT_DISCONNECT:
         g_conn_handle = BLE_HS_CONN_HANDLE_NONE;
         ESP_LOGI(TAG, "Disconnected; reason=%d", event->disconnect.reason);
+        update_bluetooth_status(false); // 更新蓝牙状态为未连接
         bleprph_advertise();
         return 0;
 
@@ -448,4 +523,7 @@ void app_main(void)
     bsp_display_lock(0);
     order_ui_init(lv_scr_act());
     bsp_display_unlock();
+    
+    // 从NVS恢复保存的时间
+    restore_time_from_nvs();
 }

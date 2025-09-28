@@ -44,4 +44,11 @@ void update_order_by_id(const char *order_id, int order_num, const char *dishes)
  */
 int send_notification(const char *json_str);
 
+/**
+ * @brief 更新蓝牙连接状态显示
+ * 
+ * @param connected 蓝牙连接状态，true表示已连接，false表示未连接
+ */
+void update_bluetooth_status(bool connected);
+
 #endif // ORDER_UI_H
