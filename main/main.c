@@ -1,4 +1,3 @@
-
 #include "nvs_flash.h"
 #include "esp_log.h"
 #include "esp_err.h"
@@ -14,15 +13,13 @@
 #include "services/gap/ble_svc_gap.h"
 #include "services/gatt/ble_svc_gatt.h"
 #include "cJSON.h"
-#include "lv_font_mulan_14.c"
 #include "order_ui.h"
 #include "hex_utils.h"
 #include "utf8_validator.h"
+#include "font/fonts.h"
 #include <stdlib.h>
 
 static const char *TAG = "NimBLE_BLE_PRPH";
-
-LV_FONT_DECLARE(lv_font_mulan_14);
 
 static void create_order_ui(void)
 {

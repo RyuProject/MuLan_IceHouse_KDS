@@ -15,11 +15,15 @@ extern "C" {
 /** Includes **/
 #include "esp_wifi.h"
 #include "port_esp_hosted_host_wifi_config.h"
+#include "esp_mac.h"
 #include "esp_hosted_api_types.h"
 #include "esp_hosted_ota.h"
 
 #if H_WIFI_ENTERPRISE_SUPPORT
 #include "esp_eap_client.h"
+#endif
+#if H_DPP_SUPPORT
+#include "esp_dpp.h"
 #endif
 
 /** Exported variables **/
@@ -81,6 +85,14 @@ esp_err_t rpc_wifi_set_inactive_time(wifi_interface_t ifx, uint16_t sec);
 esp_err_t rpc_wifi_get_inactive_time(wifi_interface_t ifx, uint16_t *sec);
 esp_err_t rpc_get_coprocessor_fwversion(esp_hosted_coprocessor_fwver_t *ver_info);
 
+esp_err_t rpc_bt_controller_init(void);
+esp_err_t rpc_bt_controller_deinit(bool mem_release);
+esp_err_t rpc_bt_controller_enable(void);
+esp_err_t rpc_bt_controller_disable(void);
+
+esp_err_t rpc_iface_mac_addr_set_get(bool set, uint8_t *mac, size_t mac_len, esp_mac_type_t type);
+esp_err_t rpc_iface_mac_addr_len_get(size_t *len, esp_mac_type_t type);
+
 esp_err_t rpc_ota_begin(void);
 esp_err_t rpc_ota_write(uint8_t* ota_data, uint32_t ota_data_len);
 esp_err_t rpc_ota_end(void);
@@ -140,6 +152,15 @@ esp_err_t rpc_eap_client_set_domain_name(const char *domain_name);
 #if H_GOT_SET_EAP_METHODS_API
 esp_err_t rpc_eap_client_set_eap_methods(esp_eap_method_t methods);
 #endif
+#endif
+#if H_DPP_SUPPORT
+esp_err_t rpc_supp_dpp_init(esp_supp_dpp_event_cb_t evt_cb);
+esp_err_t rpc_supp_dpp_deinit(void);
+esp_err_t rpc_supp_dpp_bootstrap_gen(const char *chan_list,
+		esp_supp_dpp_bootstrap_t type,
+		const char *key, const char *info);
+esp_err_t rpc_supp_dpp_start_listen(void);
+esp_err_t rpc_supp_dpp_stop_listen(void);
 #endif
 
 #ifdef __cplusplus

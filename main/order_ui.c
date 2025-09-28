@@ -3,6 +3,7 @@
 #include "esp_log.h"
 #include "bsp/display.h"
 #include "bsp/esp-bsp.h"
+#include "font/fonts.h"
 #include <string.h>
 #include <stdlib.h>
 #include "sys/queue.h"
@@ -10,10 +11,6 @@
 
 // 外部声明send_notification函数
 extern int send_notification(const char *json_str);
-
-// 外部声明字体
-extern lv_font_t lv_font_mulan_14;
-extern lv_font_t lv_font_mulan_24;
 
 static const char *TAG = "OrderUI";
 static lv_obj_t *orders_container = NULL;
@@ -101,7 +98,7 @@ void order_ui_init(lv_obj_t *parent)
 
     // 初始显示等待数据
     waiting_label = lv_label_create(orders_container);
-    lv_obj_set_style_text_font(waiting_label, &lv_font_mulan_14, 0);
+    set_font_style(waiting_label, FONT_TYPE_MULAN, FONT_SIZE_SMALL);
     lv_label_set_text(waiting_label, "等待订单数据...");
     lv_obj_center(waiting_label);
 
@@ -146,7 +143,7 @@ void show_popup_message(const char *message, uint32_t duration_ms) {
     lv_obj_set_style_bg_opa(popup, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(popup, 0, 0);
     lv_obj_set_style_pad_all(popup, 5, 0);
-    lv_obj_set_style_text_font(popup, &lv_font_mulan_14, 0);
+    set_font_style(popup, FONT_TYPE_MULAN, FONT_SIZE_SMALL);
 
     // 创建消息标签
     lv_obj_t *label = lv_label_create(popup);
@@ -246,8 +243,7 @@ void create_dynamic_order_row_with_id(const char *order_id, int order_num, const
     lv_obj_set_style_bg_color(row, lv_color_white(), 0); // 设置白色背景
     lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);
     
-    // 初始化字体引用
-    (void)&lv_font_mulan_24; // 确保字体被引用
+    // 字体引用已通过字体模块处理
 
     // 将新订单行移动到容器顶部
     lv_obj_move_to_index(row, 0);
@@ -299,7 +295,7 @@ void create_dynamic_order_row_with_id(const char *order_id, int order_num, const
                     // 创建菜品标签 - 根据Figma设计优化
                     lv_obj_t *dish_label = lv_label_create(dish_card);
                     lv_label_set_text(dish_label, dish_name);
-                    lv_obj_set_style_text_font(dish_label, &lv_font_mulan_24, 0); // 24px字体
+                    set_font_style(dish_label, FONT_TYPE_MULAN, FONT_SIZE_LARGE); // 24px字体
                     lv_obj_align(dish_label, LV_ALIGN_CENTER, 0, 0);
                     lv_obj_set_style_text_color(dish_label, lv_color_black(), 0); // 黑色文字
                     lv_obj_add_flag(dish_label, LV_OBJ_FLAG_HIDDEN); // 初始隐藏
@@ -344,7 +340,7 @@ void create_dynamic_order_row_with_id(const char *order_id, int order_num, const
                 // 创建带保护的菜品标签
                 lv_obj_t *dish_label = lv_label_create(dish_card);
                 lv_label_set_text(dish_label, token);
-                lv_obj_set_style_text_font(dish_label, &lv_font_mulan_24, 0);
+                set_font_style(dish_label, FONT_TYPE_MULAN, FONT_SIZE_LARGE);
                 lv_obj_align(dish_label, LV_ALIGN_CENTER, 0, 0);
                 lv_obj_set_style_text_color(dish_label, lv_color_black(), 0);
                 lv_obj_add_flag(dish_label, LV_OBJ_FLAG_HIDDEN); // 初始隐藏
@@ -397,8 +393,7 @@ void create_dynamic_order_row_with_id(const char *order_id, int order_num, const
     lv_obj_set_style_border_width(btn_ready, 0, 0); // 无边框
     lv_obj_clear_flag(btn_ready, LV_OBJ_FLAG_SCROLLABLE);
     
-    // 按钮字体引用
-    (void)&lv_font_mulan_24; // 确保字体被引用
+    // 按钮字体引用已通过字体模块处理
 
     // 按钮文字
     lv_obj_t *btn_label = lv_label_create(btn_ready);
@@ -416,7 +411,7 @@ void create_dynamic_order_row_with_id(const char *order_id, int order_num, const
     
     lv_label_set_text(btn_label, "已出餐");
     lv_obj_set_style_text_color(btn_label, lv_color_white(), 0); // 白色文字
-    lv_obj_set_style_text_font(btn_label, &lv_font_mulan_24, 0); // 24px字体
+    set_font_style(btn_label, FONT_TYPE_MULAN, FONT_SIZE_LARGE); // 24px字体
     lv_obj_center(btn_label);
 
     // 添加点击事件
@@ -462,7 +457,7 @@ void remove_order_by_id(const char *order_id) {
     // 如果删除后队列为空，恢复等待标签
     if (STAILQ_EMPTY(&order_list) && orders_container && lv_obj_is_valid(orders_container) && !waiting_label) {
         waiting_label = lv_label_create(orders_container);
-        lv_obj_set_style_text_font(waiting_label, &lv_font_mulan_14, 0);
+        set_font_style(waiting_label, FONT_TYPE_MULAN, FONT_SIZE_SMALL);
         lv_label_set_text(waiting_label, "等待订单数据...");
         lv_obj_center(waiting_label);
     }

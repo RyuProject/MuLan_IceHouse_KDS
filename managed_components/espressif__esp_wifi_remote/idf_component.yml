@@ -10,7 +10,7 @@ dependencies:
 description: Utility wrapper for esp_wifi functionality on remote targets
 repository: git://github.com/espressif/esp-wifi-remote.git
 repository_info:
-  commit_sha: cab27e34340d56c06823562602b720ca24c537e3
+  commit_sha: ef1d16f9516e2f7455a1118ee37f502de24e7ac9
   path: components/esp_wifi_remote
 url: https://github.com/espressif/esp-wifi-remote
-version: 1.0.0
+version: 1.1.2

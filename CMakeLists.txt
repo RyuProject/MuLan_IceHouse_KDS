@@ -3,7 +3,7 @@
 cmake_minimum_required(VERSION 3.5)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-
+include_directories(${CMAKE_CURRENT_LIST_DIR}/main/conf)
 set(EXTRA_COMPONENT_DIRS
     ./common_components
     )

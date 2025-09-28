@@ -2,8 +2,8 @@ set(LV_DEMO_DIR ../managed_components/lvgl__lvgl/demos)
 file(GLOB_RECURSE LV_DEMOS_SOURCES ${LV_DEMO_DIR}/*.c)
 
 idf_component_register(
-    SRCS main.c order_ui.c hex_utils.c utf8_validator.c lv_font_mulan_24.c ${LV_DEMOS_SOURCES}
-    INCLUDE_DIRS . ${LV_DEMO_DIR}
+    SRCS main.c order_ui.c hex_utils.c utf8_validator.c font/fonts.c font/lv_font_mulan_14.c font/lv_font_mulan_24.c font/font_puhui_16_4.c ${LV_DEMOS_SOURCES}
+    INCLUDE_DIRS . ${LV_DEMO_DIR} font
     REQUIRES 
 )
 

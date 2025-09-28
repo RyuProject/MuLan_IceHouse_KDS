@@ -36,6 +36,7 @@ if(CONFIG_ESP_HOSTED_ENABLED)
 		"${rpc_core_dir}/rpc_req.c"
 		"${rpc_core_dir}/rpc_rsp.c"
 		"${rpc_core_dir}/rpc_evt.c"
+		"${rpc_core_dir}/rpc_utils.c"
 		"${rpc_slaveif_dir}/rpc_slave_if.c"
 		"${rpc_wrap_dir}/rpc_wrap.c")
 
@@ -123,7 +124,8 @@ if(CONFIG_ESP_HOSTED_ENABLED)
 endif()
 
 idf_component_register(SRCS ${srcs}
-	PRIV_REQUIRES soc esp_event esp_netif esp_timer driver esp_wifi bt esp_http_client console wpa_supplicant
+	PRIV_REQUIRES soc esp_event esp_netif esp_timer esp_wifi bt esp_http_client console wpa_supplicant esp_driver_spi esp_driver_gpio
+	REQUIRES esp_driver_sdmmc esp_driver_uart
 	INCLUDE_DIRS ${pub_include}
 	PRIV_INCLUDE_DIRS ${priv_include})
 

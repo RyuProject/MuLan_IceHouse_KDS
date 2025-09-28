@@ -101,6 +101,11 @@ int compose_rpc_req(Rpc *req, ctrl_cmd_t *app_req, int32_t *failure_status)
 	case RPC_ID__Req_EapClearCaCert:
 	case RPC_ID__Req_EapClearCertificateAndKey:
 #endif
+#if H_DPP_SUPPORT
+	case RPC_ID__Req_SuppDppDeinit:
+	case RPC_ID__Req_SuppDppStartListen:
+	case RPC_ID__Req_SuppDppStopListen:
+#endif
 	case RPC_ID__Req_WifiScanGetApRecord: {
 		/* Intentional fallthrough & empty */
 		break;
@@ -569,7 +574,7 @@ int compose_rpc_req(Rpc *req, ctrl_cmd_t *app_req, int32_t *failure_status)
 				rpc__req__wifi_sta_itwt_set_target_wake_time_offset__init);
 		req_payload->offset_us = app_req->u.wifi_itwt_set_target_wake_time_offset_us;
 		break;
-#endif
+#endif // H_WIFI_HE_SUPPORT
 #if H_WIFI_DUALBAND_SUPPORT
 	} case RPC_ID__Req_WifiSetProtocols: {
 		RPC_ALLOC_ASSIGN(RpcReqWifiSetProtocols, req_wifi_set_protocols,
@@ -609,7 +614,60 @@ int compose_rpc_req(Rpc *req, ctrl_cmd_t *app_req, int32_t *failure_status)
 				rpc__req__wifi_set_band_mode__init);
 		req_payload->bandmode = app_req->u.wifi_band_mode;
 		break;
-#endif
+#endif // H_WIFI_DUALBAND_SUPPORT
+	} case RPC_ID__Req_IfaceMacAddrSetGet: {
+		RPC_ALLOC_ASSIGN(RpcReqIfaceMacAddrSetGet, req_iface_mac_addr_set_get,
+				rpc__req__iface_mac_addr_set_get__init);
+		req_payload->set = app_req->u.iface_mac.set;
+		req_payload->type = app_req->u.iface_mac.type;
+		if (req_payload->set) {
+			RPC_REQ_COPY_BYTES(req_payload->mac, app_req->u.iface_mac.mac,
+					app_req->u.iface_mac.mac_len);
+		}
+		break;
+	} case RPC_ID__Req_FeatureControl: {
+		RPC_ALLOC_ASSIGN(RpcReqFeatureControl, req_feature_control,
+				rpc__req__feature_control__init);
+		// convert from rpc_slave_if.h enums to proto enums
+		switch (app_req->u.feature_control.feature) {
+		case FEATURE_BT:
+			req_payload->feature = RPC_FEATURE__Feature_Bluetooth;
+			break;
+		default:
+			req_payload->feature = RPC_FEATURE__Feature_None;
+			break;
+		}
+		switch (app_req->u.feature_control.command) {
+		case FEATURE_COMMAND_BT_INIT:
+			req_payload->command = RPC_FEATURE_COMMAND__Feature_Command_BT_Init;
+			break;
+		case FEATURE_COMMAND_BT_DEINIT:
+			req_payload->command = RPC_FEATURE_COMMAND__Feature_Command_BT_Deinit;
+			break;
+		case FEATURE_COMMAND_BT_ENABLE:
+			req_payload->command = RPC_FEATURE_COMMAND__Feature_Command_BT_Enable;
+			break;
+		case FEATURE_COMMAND_BT_DISABLE:
+			req_payload->command = RPC_FEATURE_COMMAND__Feature_Command_BT_Disable;
+			break;
+		default:
+			req_payload->command = RPC_FEATURE_COMMAND__Feature_Command_None;
+			break;
+		}
+		switch (app_req->u.feature_control.option) {
+		case FEATURE_OPTION_BT_DEINIT_RELEASE_MEMORY:
+			req_payload->option = RPC_FEATURE_OPTION__Feature_Option_BT_Deinit_Release_Memory;
+			break;
+		default:
+			req_payload->option = RPC_FEATURE_OPTION__Feature_Option_None;
+			break;
+		}
+		break;
+	} case RPC_ID__Req_IfaceMacAddrLenGet: {
+		RPC_ALLOC_ASSIGN(RpcReqIfaceMacAddrLenGet, req_iface_mac_addr_len_get,
+				rpc__req__iface_mac_addr_len_get__init);
+		req_payload->type = app_req->u.iface_mac_len.type;
+		break;
 	} case RPC_ID__Req_SetDhcpDnsStatus: {
 		RPC_ALLOC_ASSIGN(RpcReqSetDhcpDnsStatus, req_set_dhcp_dns,
 				rpc__req__set_dhcp_dns_status__init);
@@ -713,7 +771,7 @@ int compose_rpc_req(Rpc *req, ctrl_cmd_t *app_req, int32_t *failure_status)
 	} case RPC_ID__Req_EapSetDomainName: {
 		RPC_ALLOC_ASSIGN(RpcReqEapSetDomainName, req_eap_set_domain_name,
 				rpc__req__eap_set_domain_name__init);
-		
+
 		RPC_REQ_COPY_BYTES(req_payload->domain_name, (uint8_t *)app_req->u.eap_domain_name.domain_name, strlen(app_req->u.eap_domain_name.domain_name) + 1);
 		break;
 #endif
@@ -724,6 +782,37 @@ int compose_rpc_req(Rpc *req, ctrl_cmd_t *app_req, int32_t *failure_status)
 		req_payload->methods = app_req->u.methods;
 		break;
 #endif
+#endif
+#if H_DPP_SUPPORT
+	} case RPC_ID__Req_SuppDppInit: {
+		RPC_ALLOC_ASSIGN(RpcReqSuppDppInit,req_supp_dpp_init,
+				rpc__req__supp_dpp_init__init);
+		req_payload->cb = app_req->u.dpp_enable_cb;
+		break;
+	} case RPC_ID__Req_SuppDppBootstrapGen: {
+		RPC_ALLOC_ASSIGN(RpcReqSuppDppBootstrapGen,req_supp_dpp_bootstrap_gen,
+				rpc__req__supp_dpp_bootstrap_gen__init);
+		int str_len;
+		RpcReqSuppDppBootstrapGen *p_c = req_payload;
+		rpc_supp_dpp_bootstrap_gen_t* p_a = &app_req->u.dpp_bootstrap_gen;
+
+		p_c->type = p_a->type;
+
+		// chan_list: copy terminating NULL
+		str_len = strlen(p_a->chan_list);
+		RPC_REQ_COPY_BYTES(p_c->chan_list, (uint8_t *)p_a->chan_list, str_len + 1);
+
+		// key is a fixed length (if provided)
+		if (p_a->key) {
+			RPC_REQ_COPY_BYTES(p_c->key, (uint8_t *)p_a->key, DPP_BOOTSTRAP_GEN_KEY_LEN);
+		}
+
+		// info: copy terminating NULL
+		if (p_a->info) {
+			str_len = strlen(p_a->info);
+			RPC_REQ_COPY_BYTES(p_c->info, (uint8_t *)p_a->info, str_len + 1);
+		}
+		break;
 #endif
 	} default: {
 		*failure_status = RPC_ERR_UNSUPPORTED_MSG;
