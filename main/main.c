@@ -429,6 +429,7 @@ static int bleprph_chr_access(uint16_t conn_handle, uint16_t attr_handle,
         }
         
         ESP_LOGI(TAG, "收到蓝牙JSON信息，长度: %d", out_len);
+        ESP_LOGI(TAG, "原始JSON数据: %.*s", out_len, buf);
         
         cJSON *root = cJSON_Parse((char *)buf);
         if (!root) {
@@ -493,11 +494,36 @@ static int bleprph_chr_access(uint16_t conn_handle, uint16_t attr_handle,
                     int order_num = generate_order_number(order_id);
                     
                     if (strcmp(type_str, "add") == 0) {
-                        create_dynamic_order_row_with_id(order_id, order_num, dishes_str ? dishes_str : "无菜品");
-                        show_popup_message("订单已添加", 2000);
-                    } else {
-                        update_order_by_id(order_id, order_num, dishes_str ? dishes_str : "无菜品");
-                        show_popup_message("订单已更新", 2000);
+                        add_new_order(order_id, order_num, dishes_str ? dishes_str : "无菜品");
+                        show_popup_message("新订单已接收", 2000);
+                    } else if (strcmp(type_str, "update") == 0) {
+                        // 检查是出餐完成还是订单编辑
+                        cJSON *status = cJSON_GetObjectItem(root, "status");
+                        ESP_LOGI(TAG, "解析status字段: %s", status ? "存在" : "不存在");
+                        
+                        if (status && cJSON_IsBool(status)) {
+                            ESP_LOGI(TAG, "status字段类型正确，值为: %d", status->valueint);
+                            if (status->valueint) {
+                                // status: true - 出餐完成
+                                ESP_LOGI(TAG, "检测到出餐完成消息，订单ID: %s", order_id);
+                                if (order_id && strlen(order_id) > 0) {
+                                    complete_current_order(order_id);
+                                    show_popup_message("订单已完成", 2000);
+                                } else {
+                                    ESP_LOGE("TimeSync", "无效的order_id，无法完成订单");
+                                }
+                            } else {
+                                // status: false - 订单编辑
+                                ESP_LOGI(TAG, "检测到订单编辑消息，订单ID: %s", order_id);
+                                update_order_by_id(order_id, order_num, dishes_str ? dishes_str : "无菜品");
+                                show_popup_message("订单已更新", 2000);
+                            }
+                        } else {
+                            ESP_LOGW(TAG, "status字段无效或缺失，默认处理为订单编辑");
+                            // 默认处理为订单编辑
+                            update_order_by_id(order_id, order_num, dishes_str ? dishes_str : "无菜品");
+                            show_popup_message("订单已更新", 2000);
+                        }
                     }
                     
                     if (dishes_str) {
@@ -672,7 +698,7 @@ static void bleprph_host_task(void *param)
 
 void app_main(void)
 {
-    ESP_LOGI(TAG, "应用程序启动");
+    ESP_LOGI(TAG, "MuLan IceHouse KDS 单订单焦点模式启动中...");
     
     // 创建互斥锁
     g_json_mutex = xSemaphoreCreateMutex();
@@ -762,7 +788,7 @@ void app_main(void)
     bsp_display_backlight_on();
     ESP_LOGI(TAG, "显示初始化完成");
 
-    // 初始化UI
+    // 初始化UI（单订单焦点模式）
     bsp_display_lock(portMAX_DELAY);
     order_ui_init(lv_scr_act());
     bsp_display_unlock();
@@ -771,7 +797,7 @@ void app_main(void)
     // 从NVS恢复保存的时间
     restore_time_from_nvs();
     
-    ESP_LOGI(TAG, "应用程序启动完成");
+    ESP_LOGI(TAG, "MuLan IceHouse KDS 单订单焦点模式启动完成");
     
     // 保持任务运行
     while (1) {
