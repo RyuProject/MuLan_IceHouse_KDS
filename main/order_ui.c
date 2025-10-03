@@ -11,6 +11,9 @@
 #include "sys/queue.h"
 #include "cJSON.h"
 
+// 函数声明
+void init_time_update(void);
+
 static const char *TAG = "OrderUI-Focus";
 
 // UI对象
@@ -51,10 +54,10 @@ static void btn_complete_cb(lv_event_t *e)
     bsp_display_lock(portMAX_DELAY);
     
     if (current_processing_order) {
-        // 发送完成通知
+        // 发送完成通知 - 使用压缩格式
         char notify_msg[128];
         snprintf(notify_msg, sizeof(notify_msg), 
-                "{\"orderId\":\"%s\",\"status\":true}", 
+                "{\"o\":\"%s\",\"s\":true}", 
                 current_processing_order->order_id);
         
         send_notification(notify_msg);
@@ -88,14 +91,14 @@ static void create_current_order_display(order_info_t *order)
     
     // 创建订单卡片
     lv_obj_t *order_card = lv_obj_create(current_order_container);
-    lv_obj_set_size(order_card, LV_PCT(95), 280);  // 大尺寸，突出显示
+    lv_obj_set_size(order_card, LV_PCT(95), 500);  // 大尺寸，突出显示
     lv_obj_set_style_bg_color(order_card, lv_color_hex(0xFFFFFF), 0);
     lv_obj_set_style_border_color(order_card, lv_color_hex(0x08C160), 0);
     lv_obj_set_style_border_width(order_card, 3, 0);
-    lv_obj_set_style_radius(order_card, 10, 0);
-    lv_obj_set_style_shadow_width(order_card, 20, 0);
-    lv_obj_set_style_shadow_color(order_card, lv_color_hex(0x000000), 0);
-    lv_obj_set_style_shadow_opa(order_card, LV_OPA_30, 0);
+    // lv_obj_set_style_radius(order_card, 10, 0);
+    // lv_obj_set_style_shadow_width(order_card, 20, 0);
+    // lv_obj_set_style_shadow_color(order_card, lv_color_hex(0x000000), 0);
+    // lv_obj_set_style_shadow_opa(order_card, LV_OPA_30, 0);
     lv_obj_center(order_card);
     
     // 订单号标题
@@ -109,7 +112,7 @@ static void create_current_order_display(order_info_t *order)
     
     // 菜品显示区域 - 优化布局
     lv_obj_t *dishes_container = lv_obj_create(order_card);
-    lv_obj_set_size(dishes_container, LV_PCT(90), 180);
+    lv_obj_set_size(dishes_container, LV_PCT(90), LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(dishes_container, LV_FLEX_FLOW_ROW_WRAP);
     lv_obj_set_flex_align(dishes_container, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
     lv_obj_set_style_pad_gap(dishes_container, 10, 0);
@@ -206,7 +209,7 @@ static void update_waiting_orders_display(void)
         if (order->status == ORDER_STATUS_PENDING && display_count < MAX_WAITING_ORDERS_DISPLAY) {
             // 创建等待订单项
             lv_obj_t *waiting_item = lv_obj_create(waiting_orders_container);
-            lv_obj_set_size(waiting_item, LV_PCT(95), 50);
+            lv_obj_set_size(waiting_item, LV_PCT(100), 50);
             lv_obj_set_style_bg_color(waiting_item, lv_color_hex(0xF8F9FA), 0);
             lv_obj_set_style_border_width(waiting_item, 1, 0);
             lv_obj_set_style_border_color(waiting_item, lv_color_hex(0xDDDDDD), 0);
@@ -219,6 +222,15 @@ static void update_waiting_orders_display(void)
             lv_label_set_text(order_label, order_text);
             set_font_style(order_label, FONT_TYPE_DEVICE, FONT_SIZE_MEDIUM);
             lv_obj_align(order_label, LV_ALIGN_LEFT_MID, 10, 0);
+            
+            // 菜品名称显示
+            if (order->dishes && strlen(order->dishes) > 0) {
+                lv_obj_t *dish_label = lv_label_create(waiting_item);
+                lv_label_set_text(dish_label, order->dishes);
+                set_font_style(dish_label, FONT_TYPE_PUHUI, FONT_SIZE_MEDIUM);
+                lv_obj_set_style_text_color(dish_label, lv_color_hex(0x666666), 0);
+                lv_obj_align(dish_label, LV_ALIGN_LEFT_MID, 100, 0);
+            }
             
             // 状态指示
             lv_obj_t *status_label = lv_label_create(waiting_item);
@@ -330,8 +342,12 @@ void order_ui_init(lv_obj_t *parent)
     time_label = lv_label_create(right_container);
     lv_label_set_text(time_label, "00:00");
     lv_obj_set_style_text_font(time_label, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_margin_right(time_label, 100, 0);
     
     bsp_display_unlock();
+    
+    // 初始化时间更新定时器
+    init_time_update();
 }
 
 // 添加新订单
@@ -637,5 +653,31 @@ void show_popup_message(const char *message, uint32_t duration_ms) {
     }
     
     bsp_display_unlock();
+}
+
+// 时间更新定时器回调
+static void time_update_timer_cb(lv_timer_t *timer) {
+    if (!time_label) return;
+    
+    time_t now;
+    struct tm timeinfo;
+    time(&now);
+    localtime_r(&now, &timeinfo);
+    
+    char time_str[16];
+    strftime(time_str, sizeof(time_str), "%H:%M", &timeinfo);
+    
+    bsp_display_lock(portMAX_DELAY);
+    lv_label_set_text(time_label, time_str);
+    bsp_display_unlock();
+}
+
+// 初始化时间更新定时器
+void init_time_update(void) {
+    // 创建定时器，每秒更新一次时间
+    lv_timer_t *timer = lv_timer_create(time_update_timer_cb, 1000, NULL);
+    if (timer) {
+        lv_timer_set_repeat_count(timer, -1); // 无限重复
+    }
 }
 

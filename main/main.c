@@ -293,7 +293,7 @@ static void handle_system_message(cJSON* root) {
     }
 }
 
-// 构建菜品字符串（优化内存管理和错误处理）
+// 构建菜品字符串（优化内存管理和错误处理）- 支持新旧两种格式
 static char* build_dishes_string(cJSON* items) {
     if (!items || !cJSON_IsArray(items)) return NULL;
     
@@ -316,14 +316,28 @@ static char* build_dishes_string(cJSON* items) {
             break;
         }
         
-        cJSON *name = cJSON_GetObjectItem(item, "name");
-        if (!cJSON_IsString(name) || !name->valuestring) {
-            continue;
+        const char *name_str = NULL;
+        char decoded_name[128] = {0};
+        const char *display_name = NULL;
+        
+        // 支持新旧两种格式：
+        // 旧格式: {"name": "菜品名"} 或 {"name": "十六进制编码"}
+        // 新格式: 直接字符串 "菜品名"
+        if (cJSON_IsObject(item)) {
+            // 旧格式：包含name字段的对象
+            cJSON *name = cJSON_GetObjectItem(item, "name");
+            if (!cJSON_IsString(name) || !name->valuestring) {
+                continue;
+            }
+            name_str = name->valuestring;
+        } else if (cJSON_IsString(item)) {
+            // 新格式：直接字符串
+            name_str = item->valuestring;
+        } else {
+            continue; // 无效格式
         }
         
-        const char *name_str = name->valuestring;
-        char decoded_name[128] = {0};
-        const char *display_name = name_str;
+        display_name = name_str;
         
         // 尝试解码十六进制菜品名
         if (decode_hex_content(name_str, decoded_name, sizeof(decoded_name))) {
@@ -458,17 +472,31 @@ static int bleprph_chr_access(uint16_t conn_handle, uint16_t attr_handle,
             return BLE_ATT_ERR_UNLIKELY;
         }
 
-        // 检查操作类型
-        cJSON *type = cJSON_GetObjectItem(root, "type");
+        // 检查操作类型 - 支持新旧两种格式
+        cJSON *type = cJSON_GetObjectItem(root, "t");
+        if (!type) {
+            // 向后兼容：如果没有t字段，检查旧的type字段
+            type = cJSON_GetObjectItem(root, "type");
+        }
+        
         if (type && cJSON_IsString(type)) {
             const char *type_str = type->valuestring;
             
-            if (strcmp(type_str, "info") == 0) {
+            // 支持新旧类型标识符
+            if (strcmp(type_str, "info") == 0 || strcmp(type_str, "i") == 0) {
                 handle_system_message(root);
-            } else if (strcmp(type_str, "add") == 0 || strcmp(type_str, "update") == 0 || strcmp(type_str, "remove") == 0) {
+            } else if (strcmp(type_str, "add") == 0 || strcmp(type_str, "a") == 0 || 
+                       strcmp(type_str, "update") == 0 || strcmp(type_str, "u") == 0 || 
+                       strcmp(type_str, "remove") == 0 || strcmp(type_str, "r") == 0) {
                 bsp_display_lock(portMAX_DELAY);
                 
-                cJSON *id = cJSON_GetObjectItem(root, "orderId");
+                // 获取订单ID - 支持新旧两种格式
+                cJSON *id = cJSON_GetObjectItem(root, "o");
+                if (!id) {
+                    // 向后兼容：如果没有o字段，检查旧的orderId字段
+                    id = cJSON_GetObjectItem(root, "orderId");
+                }
+                
                 if (!id || !cJSON_IsString(id) || !id->valuestring) {
                     ESP_LOGE(TAG, "无效的订单ID");
                     bsp_display_unlock();
@@ -480,12 +508,17 @@ static int bleprph_chr_access(uint16_t conn_handle, uint16_t attr_handle,
                 const char *order_id = id->valuestring;
                 ESP_LOGI(TAG, "处理订单: type=%s, orderId=%s", type_str, order_id);
                 
-                if (strcmp(type_str, "remove") == 0) {
+                if (strcmp(type_str, "remove") == 0 || strcmp(type_str, "r") == 0) {
                     remove_order_by_id(order_id);
                     show_popup_message("订单已删除", 2000);
                 } else {
                     char *dishes_str = NULL;
-                    cJSON *items = cJSON_GetObjectItem(root, "items");
+                    // 获取菜品数据 - 支持新旧两种格式
+                    cJSON *items = cJSON_GetObjectItem(root, "c");
+                    if (!items) {
+                        // 向后兼容：如果没有c字段，检查旧的items字段
+                        items = cJSON_GetObjectItem(root, "items");
+                    }
                     
                     if (items && cJSON_IsArray(items)) {
                         dishes_str = build_dishes_string(items);
@@ -493,10 +526,10 @@ static int bleprph_chr_access(uint16_t conn_handle, uint16_t attr_handle,
                     
                     int order_num = generate_order_number(order_id);
                     
-                    if (strcmp(type_str, "add") == 0) {
+                    if (strcmp(type_str, "add") == 0 || strcmp(type_str, "a") == 0) {
                         add_new_order(order_id, order_num, dishes_str ? dishes_str : "无菜品");
                         show_popup_message("新订单已接收", 2000);
-                    } else if (strcmp(type_str, "update") == 0) {
+                    } else if (strcmp(type_str, "update") == 0 || strcmp(type_str, "u") == 0) {
                         // 检查是出餐完成还是订单编辑
                         cJSON *status = cJSON_GetObjectItem(root, "status");
                         ESP_LOGI(TAG, "解析status字段: %s", status ? "存在" : "不存在");
