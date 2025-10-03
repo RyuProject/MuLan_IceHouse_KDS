@@ -604,12 +604,38 @@ void update_bluetooth_status(bool connected) {
     
     if (bluetooth_label) {
         if (connected) {
-            lv_label_set_text(bluetooth_label, LV_SYMBOL_BLUETOOTH "OK");
+            lv_label_set_text(bluetooth_label, LV_SYMBOL_BLUETOOTH " OK");
             lv_obj_set_style_text_color(bluetooth_label, lv_color_hex(0x06C260), 0);
+            lv_obj_set_style_text_opa(bluetooth_label, LV_OPA_100, 0);
+            
+            // 连接成功动画效果
+            lv_anim_t a;
+            lv_anim_init(&a);
+            lv_anim_set_var(&a, bluetooth_label);
+            lv_anim_set_values(&a, 0, 255);
+            lv_anim_set_exec_cb(&a, (lv_anim_exec_xcb_t)lv_obj_set_style_text_opa);
+            lv_anim_set_time(&a, 300);
+            lv_anim_set_playback_time(&a, 300);
+            lv_anim_set_repeat_count(&a, 2);
+            lv_anim_start(&a);
         } else {
-            lv_label_set_text(bluetooth_label, LV_SYMBOL_BLUETOOTH "Ready");
+            lv_label_set_text(bluetooth_label, LV_SYMBOL_BLUETOOTH " Ready");
             lv_obj_set_style_text_color(bluetooth_label, lv_color_hex(0xfa5051), 0);
+            lv_obj_set_style_text_opa(bluetooth_label, LV_OPA_80, 0);
+            
+            // 断开连接闪烁效果
+            lv_anim_t a;
+            lv_anim_init(&a);
+            lv_anim_set_var(&a, bluetooth_label);
+            lv_anim_set_values(&a, 80, 255);
+            lv_anim_set_exec_cb(&a, (lv_anim_exec_xcb_t)lv_obj_set_style_text_opa);
+            lv_anim_set_time(&a, 800);
+            lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
+            lv_anim_start(&a);
         }
+        
+        // 强制刷新显示
+        lv_obj_invalidate(bluetooth_label);
     }
     
     bsp_display_unlock();
@@ -670,6 +696,65 @@ static void time_update_timer_cb(lv_timer_t *timer) {
     bsp_display_lock(portMAX_DELAY);
     lv_label_set_text(time_label, time_str);
     bsp_display_unlock();
+}
+
+// 显示等待新订单状态
+static void show_waiting_for_orders(void) {
+    if (!current_order_container) return;
+    
+    // 清空当前订单容器
+    lv_obj_clean(current_order_container);
+    
+    // 创建等待新订单的显示
+    lv_obj_t *waiting_container = lv_obj_create(current_order_container);
+    lv_obj_set_size(waiting_container, LV_PCT(95), 500);
+    lv_obj_set_style_bg_color(waiting_container, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_set_style_border_width(waiting_container, 0, 0);
+    lv_obj_center(waiting_container);
+    
+    lv_obj_t *waiting_label = lv_label_create(waiting_container);
+    lv_label_set_text(waiting_label, "等待新订单");
+    lv_obj_set_style_text_font(waiting_label, &lv_font_mulan_24, 0);
+    lv_obj_set_style_text_color(waiting_label, lv_color_hex(0x999999), 0);
+    lv_obj_center(waiting_label);
+    
+    // 清空等待订单容器
+    if (waiting_orders_container) {
+        lv_obj_clean(waiting_orders_container);
+    }
+    
+    // 更新等待订单数量显示
+    if (waiting_count_label) {
+        lv_label_set_text(waiting_count_label, "等待: 0");
+    }
+}
+
+// 清空所有订单并重置系统状态
+void clear_all_orders(void) {
+    bsp_display_lock(portMAX_DELAY);
+    
+    // 遍历并删除所有订单
+    order_info_t *order, *temp;
+    STAILQ_FOREACH_SAFE(order, &order_list, entries, temp) {
+        // 删除UI控件
+        if (order->ui_widget && lv_obj_is_valid(order->ui_widget)) {
+            lv_obj_del(order->ui_widget);
+        }
+        // 释放内存
+        if (order->order_id) free(order->order_id);
+        if (order->dishes) free(order->dishes);
+        free(order);
+    }
+    
+    // 重置队列
+    STAILQ_INIT(&order_list);
+    current_processing_order = NULL;
+    
+    // 显示等待新订单状态
+    show_waiting_for_orders();
+    
+    bsp_display_unlock();
+    ESP_LOGI(TAG, "所有订单已清空");
 }
 
 // 初始化时间更新定时器

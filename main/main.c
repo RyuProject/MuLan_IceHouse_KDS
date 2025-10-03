@@ -245,10 +245,25 @@ static char* decode_hex_content(const char* hex_content, char* buffer, size_t bu
 
 // 处理系统消息
 static void handle_system_message(cJSON* root) {
-    // 检查命令类型
-    cJSON *command = cJSON_GetObjectItem(root, "command");
+    // 检查命令类型 - 支持新旧两种格式
+    cJSON *command = cJSON_GetObjectItem(root, "c");
+    if (!command) {
+        // 向后兼容：如果没有c字段，检查旧的command字段
+        command = cJSON_GetObjectItem(root, "command");
+    }
+    
     if (command && cJSON_IsString(command)) {
         const char *command_str = command->valuestring;
+        
+        // 处理clean命令 - 清空所有订单
+        if (strcmp(command_str, "clean") == 0) {
+            ESP_LOGI(TAG, "收到清空订单命令");
+            bsp_display_lock(portMAX_DELAY);
+            clear_all_orders();
+            show_popup_message("所有订单已清空", 2000);
+            bsp_display_unlock();
+            return;
+        }
         
         // 处理display_test命令的时间戳同步
         if (strcmp(command_str, "display_test") == 0) {
@@ -342,6 +357,9 @@ static char* build_dishes_string(cJSON* items) {
         // 尝试解码十六进制菜品名
         if (decode_hex_content(name_str, decoded_name, sizeof(decoded_name))) {
             display_name = decoded_name;
+            ESP_LOGI(TAG, "解码菜品名称: %s -> %s", name_str, decoded_name);
+        } else {
+            ESP_LOGI(TAG, "菜品名称(未解码): %s", name_str);
         }
         
         size_t name_len = strlen(display_name);
@@ -514,14 +532,26 @@ static int bleprph_chr_access(uint16_t conn_handle, uint16_t attr_handle,
                 } else {
                     char *dishes_str = NULL;
                     // 获取菜品数据 - 支持新旧两种格式
-                    cJSON *items = cJSON_GetObjectItem(root, "c");
+                    cJSON *items = cJSON_GetObjectItem(root, "i");
+                    if (!items) {
+                        // 向后兼容：如果没有i字段，检查c字段
+                        items = cJSON_GetObjectItem(root, "c");
+                    }
                     if (!items) {
                         // 向后兼容：如果没有c字段，检查旧的items字段
                         items = cJSON_GetObjectItem(root, "items");
                     }
                     
                     if (items && cJSON_IsArray(items)) {
+                        ESP_LOGI(TAG, "找到菜品数组，包含%d个菜品", cJSON_GetArraySize(items));
                         dishes_str = build_dishes_string(items);
+                        if (dishes_str) {
+                            ESP_LOGI(TAG, "菜品字符串构建成功: %s", dishes_str);
+                        } else {
+                            ESP_LOGW(TAG, "菜品字符串构建失败");
+                        }
+                    } else {
+                        ESP_LOGW(TAG, "未找到有效的菜品数组");
                     }
                     
                     int order_num = generate_order_number(order_id);

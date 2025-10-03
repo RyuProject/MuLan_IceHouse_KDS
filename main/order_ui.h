@@ -68,4 +68,9 @@ void create_dynamic_order_row_with_id(const char *order_id, int order_num, const
 void remove_order_by_id(const char *order_id);
 void update_order_by_id(const char *order_id, int order_num, const char *dishes);
 
+/**
+ * @brief 清空所有订单并重置系统状态
+ */
+void clear_all_orders(void);
+
 #endif // ORDER_UI_H
